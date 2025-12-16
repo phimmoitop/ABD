@@ -49,7 +49,7 @@ jobs:
             -u "${{ github.event.inputs.id }}" \
             -o .
 
-          FILE=$(ls *.mp4 | head -n 1)
+          FILE=$(find . -type f -name "*.mp4" | head -n 1)
           if [ ! -f "$FILE" ]; then
             echo "Không tìm thấy file mp4 sau khi tải"
             exit 1
