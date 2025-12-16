@@ -45,17 +45,16 @@ jobs:
 
       - name: Download video via Abyss
         run: |
+          OUTPUT="${{ github.event.inputs.slug }}.mp4"
+
           java -jar tools/abyss-dl.jar \
             -u "${{ github.event.inputs.id }}" \
-            -o .
-
-          FILE=$(find . -type f -name "*.mp4" | head -n 1)
-          if [ ! -f "$FILE" ]; then
+            -o "$OUTPUT"
+            
+          if [ ! -f "$OUTPUT" ]; then
             echo "Không tìm thấy file mp4 sau khi tải"
             exit 1
-          fi
-
-          mv "$FILE" "${{ github.event.inputs.slug }}.mp4"
+            fi
 
       - name: Verify video file (size + ffprobe + wait)
         run: |
