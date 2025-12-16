@@ -48,8 +48,7 @@ jobs:
           OUTPUT="${{ github.event.inputs.slug }}.mp4"
 
           java -jar tools/abyss-dl.jar \
-            "${{ github.event.inputs.id }}" \
-            -o "$OUTPUT"
+            "${{ github.event.inputs.id }}" h -o "$OUTPUT"
             
           if [ ! -f "$OUTPUT" ]; then
             echo "Không tìm thấy file mp4 sau khi tải"
