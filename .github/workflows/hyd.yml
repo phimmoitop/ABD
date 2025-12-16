@@ -48,7 +48,7 @@ jobs:
           OUTPUT="${{ github.event.inputs.slug }}.mp4"
 
           java -jar tools/abyss-dl.jar \
-            -u "${{ github.event.inputs.id }}" \
+            "${{ github.event.inputs.id }}" \
             -o "$OUTPUT"
             
           if [ ! -f "$OUTPUT" ]; then
