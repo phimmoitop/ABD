@@ -1,4 +1,4 @@
-name: Abyss 998 -> M3U8 -> Deploy -> AV1 -> Error
+name: Abyss 997 -> M3U8 -> Deploy -> AV1 -> Error
 
 on:
   workflow_dispatch:
