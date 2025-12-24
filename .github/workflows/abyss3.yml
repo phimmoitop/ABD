@@ -92,7 +92,7 @@ jobs:
             -hls_time 2 \
             -hls_list_size 0 \
             -hls_segment_type fmp4 \
-            -hls_fmp4_init_filename "output/init.mp4" \
+            -hls_fmp4_init_filename "init.mp4" \
             -hls_segment_filename "output/${{ github.event.inputs.slug }}_%05d.png" \
             -f hls "output/${{ github.event.inputs.slug }}.m3u8"
 
