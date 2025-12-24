@@ -89,7 +89,7 @@ jobs:
           ffmpeg -i "$INPUT" \
             -codec copy \
             -start_number 10001 \
-            -hls_time 8 \
+            -hls_time 6 \
             -hls_list_size 0 \
             -hls_segment_filename "output/${{ github.event.inputs.slug }}-index%d.png" \
             -f hls "output/${{ github.event.inputs.slug }}.m3u8"
