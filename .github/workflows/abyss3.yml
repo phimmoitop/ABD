@@ -1,0 +1,122 @@
+name: Abyss 998 -> M3U8 -> Deploy -> AV1 -> Error
+
+on:
+  workflow_dispatch:
+    inputs:
+      id:
+        description: 'ID'
+        required: true
+      slug:
+        description: 'Slug'
+        required: true
+      token:
+        description: 'Token'
+        required: true
+      projectName:
+        description: 'projectName'
+        required: true
+      accountId:
+        description: 'AccountID'
+        required: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v2
+
+      - name: Download abyss-dl.jar
+        run: |
+          mkdir -p tools
+          curl -L \
+            -o tools/abyss-dl.jar \
+            https://github.com/abdlhay/AbyssVideoDownloader/releases/latest/download/abyss-dl.jar
+
+      - name: Download video & detect codec (fail if AV1)
+        run: |
+          FILE="${{ github.event.inputs.slug }}.mp4"
+
+          java -jar tools/abyss-dl.jar \
+            "${{ github.event.inputs.id }}" h -o "$FILE"
+
+          if [ ! -f "$FILE" ]; then
+            echo "Không tìm thấy file mp4 sau khi tải"
+            exit 1
+          fi
+
+          SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
+          echo "File size: $SIZE bytes"
+
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "File không hợp lệ hoặc quá nhỏ"
+            exit 1
+          fi
+
+          CODEC=$(ffprobe -v error \
+            -select_streams v:0 \
+            -show_entries stream=codec_name \
+            -of default=noprint_wrappers=1:nokey=1 \
+            "$FILE")
+
+          echo "Detected codec: $CODEC"
+
+          if [ "$CODEC" != "h264" ]; then
+            echo "Codec không được hỗ trợ ($CODEC) – chỉ chấp nhận H.264"
+            exit 1
+          fi
+
+          ffprobe -v error \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1:nokey=1 \
+            "$FILE" || exit 1
+
+      - name: Convert H264 to HLS (.m3u8)
+        run: |
+          mkdir -p output
+          INPUT="${{ github.event.inputs.slug }}.mp4"
+
+          ffmpeg -i "$INPUT" \
+            -codec copy \
+            -start_number 0 \
+            -hls_time 2 \
+            -hls_list_size 0 \
+            -hls_segment_type fmp4 \
+            -hls_fmp4_init_filename "output/init.mp4" \
+            -hls_segment_filename "output/${{ github.event.inputs.slug }}_%05d.png" \
+            -f hls "output/${{ github.event.inputs.slug }}.m3u8"
+
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ github.event.inputs.token }}
+          accountId: ${{ github.event.inputs.accountId }}
+          projectName: ${{ github.event.inputs.projectName }}
+          directory: ./output
+          branch: ${{ github.event.inputs.slug }}
+
+      - name: Callback success
+        if: success()
+        run: |
+          curl -G "https://cp.ssplay.net/cf.php" \
+            --data-urlencode "type=ok" \
+            --data-urlencode "key=${{ github.event.inputs.projectName }}" \
+            --data-urlencode "slug=${{ github.event.inputs.slug }}"
+
+      - name: Callback error
+        if: failure()
+        run: |
+          curl -G "https://cp.ssplay.net/cf.php" \
+            --data-urlencode "type=error" \
+            --data-urlencode "slug=${{ github.event.inputs.slug }}"
