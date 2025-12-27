@@ -95,10 +95,10 @@ jobs:
             -hls_segment_filename "output/${{ github.event.inputs.slug }}-index%d.png" \
             -f hls "output/${{ github.event.inputs.slug }}.m3u8"
 
-          # Đổi tên init.mp4 thành init.png và sửa trong playlist
+          # Đổi tên init.mp4 thành ${{ github.event.inputs.slug }}-index.png và sửa trong playlist
           if [ -f "output/init.mp4" ]; then
-            mv "output/init.mp4" "output/init.png"
-            sed -i 's/init.mp4/init.png/' "output/${{ github.event.inputs.slug }}.m3u8"
+            mv "output/init.mp4" "output/${{ github.event.inputs.slug }}-index.png"
+            sed -i "s/init.mp4/${{ github.event.inputs.slug }}-index.png/" "output/${{ github.event.inputs.slug }}.m3u8"
           fi
 
       - name: Deploy to Cloudflare Pages
