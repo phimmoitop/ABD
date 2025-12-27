@@ -81,7 +81,7 @@ jobs:
             -of default=noprint_wrappers=1:nokey=1 \
             "$FILE" || exit 1
 
-      - name: Convert H264 to HLS (.m3u8)
+      - name: Convert H264 to HLS (.m3u8 fMP4)
         run: |
           mkdir -p output
           INPUT="${{ github.event.inputs.slug }}.mp4"
@@ -89,10 +89,17 @@ jobs:
           ffmpeg -i "$INPUT" \
             -codec copy \
             -start_number 10001 \
-            -hls_time 6 \
+            -hls_time 4 \
             -hls_list_size 0 \
+            -hls_segment_type fmp4 \
             -hls_segment_filename "output/${{ github.event.inputs.slug }}-index%d.png" \
             -f hls "output/${{ github.event.inputs.slug }}.m3u8"
+
+          # Đổi tên init.mp4 thành init.png và sửa trong playlist
+          if [ -f "output/init.mp4" ]; then
+            mv "output/init.mp4" "output/init.png"
+            sed -i 's/init.mp4/init.png/' "output/${{ github.event.inputs.slug }}.m3u8"
+          fi
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
