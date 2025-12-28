@@ -87,7 +87,14 @@ jobs:
           INPUT="${{ github.event.inputs.slug }}.mp4"
 
           ffmpeg -i "$INPUT" \
-            -codec copy \
+            -map 0:v:0 \
+            -map 0:a:0 \
+            -c:v copy \
+            -c:a aac \
+            -profile:a aac_low \
+            -ar 48000 \
+            -ac 2 \
+            -b:a 128k \
             -start_number 10001 \
             -hls_time 4 \
             -hls_list_size 0 \
