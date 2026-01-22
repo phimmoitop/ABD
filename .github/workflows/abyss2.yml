@@ -24,8 +24,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -39,66 +38,73 @@ jobs:
       - name: Download abyss-dl.jar
         run: |
           mkdir -p tools
-          curl -L \
-            -o tools/abyss-dl.jar \
+          curl -L -o tools/abyss-dl.jar \
             https://github.com/abdlhay/AbyssVideoDownloader/releases/latest/download/abyss-dl.jar
 
-      - name: Download video & remux & detect codec
+      - name: Download video + fix + normalize
         run: |
           RAW="${{ github.event.inputs.slug }}.raw.mp4"
           FILE="${{ github.event.inputs.slug }}.mp4"
 
-          java -jar tools/abyss-dl.jar \
-            "${{ github.event.inputs.id }}" h -o "$RAW"
+          echo "Downloading video..."
+          java -jar tools/abyss-dl.jar "${{ github.event.inputs.id }}" h -o "$RAW"
 
-          if [ ! -f "$RAW" ]; then
-            echo "Không tìm thấy file mp4 sau khi tải"
-            exit 1
+          [ -f "$RAW" ] || exit 1
+
+          SIZE=$(stat -c%s "$RAW")
+          echo "Raw size: $SIZE"
+          [ "$SIZE" -gt 1000000 ] || exit 1
+
+          echo "Trying remux (metadata fix)..."
+          if ffmpeg -err_detect ignore_err -i "$RAW" -map 0 -c copy "$FILE" -y; then
+            echo "Remux OK"
+
+            CODEC=$(ffprobe -v error -select_streams v:0 \
+              -show_entries stream=codec_name \
+              -of default=noprint_wrappers=1:nokey=1 "$FILE")
+
+            echo "Detected codec: $CODEC"
+
+            if [ "$CODEC" != "h264" ]; then
+              echo "Non-H264 codec → re-encode"
+              rm -f "$FILE"
+              NEED_ENCODE=1
+            else
+              NEED_ENCODE=0
+            fi
+          else
+            echo "Remux failed → re-encode"
+            NEED_ENCODE=1
           fi
 
-          SIZE=$(stat -c%s "$RAW" 2>/dev/null || echo 0)
-          echo "Raw file size: $SIZE bytes"
-
-          if [ "$SIZE" -lt 1000000 ]; then
-            echo "File không hợp lệ hoặc quá nhỏ"
-            exit 1
+          if [ "$NEED_ENCODE" = "1" ]; then
+            echo "Re-encoding to H.264..."
+            ffmpeg -err_detect ignore_err \
+              -fflags +genpts \
+              -i "$RAW" \
+              -map 0:v:0 \
+              -map 0:a? \
+              -c:v libx264 -crf 23 -preset medium \
+              -pix_fmt yuv420p \
+              -r 24 -g 120 -keyint_min 120 -sc_threshold 0 \
+              -c:a aac -b:a 128k \
+              -movflags +faststart \
+              "$FILE"
           fi
-
-          echo "Re-muxing to fix container..."
-          ffmpeg -err_detect ignore_err -i "$RAW" -map 0 -c copy "$FILE" -y || {
-            echo "Re-mux thất bại"
-            exit 1
-          }
 
           rm -f "$RAW"
 
-          CODEC=$(ffprobe -v error \
-            -select_streams v:0 \
-            -show_entries stream=codec_name \
-            -of default=noprint_wrappers=1:nokey=1 \
-            "$FILE")
+          ffprobe -v error -show_entries format=duration \
+            -of default=noprint_wrappers=1:nokey=1 "$FILE"
 
-          echo "Detected codec: $CODEC"
-
-          if [ "$CODEC" != "h264" ]; then
-            echo "Codec không được hỗ trợ ($CODEC) – chỉ chấp nhận H.264"
-            exit 1
-          fi
-
-          ffprobe -v error \
-            -show_entries format=duration \
-            -of default=noprint_wrappers=1:nokey=1 \
-            "$FILE" || exit 1
-
-
-      - name: Convert H264 to HLS (.m3u8 fMP4)
+      - name: Convert to HLS (.m3u8 fMP4)
         run: |
           mkdir -p output
           INPUT="${{ github.event.inputs.slug }}.mp4"
 
           ffmpeg -i "$INPUT" \
             -map 0:v:0 \
-            -map 0:a:0 \
+            -map 0:a? \
             -c:v copy \
             -c:a copy \
             -start_number 10001 \
