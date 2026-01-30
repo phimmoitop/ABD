@@ -39,7 +39,7 @@ jobs:
         run: |
           mkdir -p tools
           curl -L -o tools/abyss-dl.jar \
-            https://github.com/abdlhay/AbyssVideoDownloader/releases/latest/download/abyss-dl.jar
+            https://github.com/abdlhay/AbyssVideoDownloader/releases/download/v1.6.0/abyss-dl.jar
 
       - name: Download video + fix + normalize
         run: |
