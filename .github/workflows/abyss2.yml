@@ -40,25 +40,25 @@ jobs:
           mkdir -p tools
           curl -L -o tools/abyss-dl.jar \
             https://github.com/abdlhay/AbyssVideoDownloader/releases/download/v1.6.1/abyss-dl.jar
-      - name: Check Connectivity
-        run: |
-          echo "Kiểm tra kết nối tới server..."
-          # Thử ping hoặc curl một link segment (nếu bạn có link m3u8)
-          # Hoặc đơn giản là kiểm tra IP của GitHub hiện tại
-          curl ifconfig.me
-          echo -e "\n"
-          # Thử check tiêu đề trang web nguồn
-          curl -I https://abysscdn.com || echo "Không thể kết nối tới Abyss Server"
       - name: Download video + fix + normalize
         run: |
           RAW="${{ github.event.inputs.slug }}.raw.mp4"
           FILE="${{ github.event.inputs.slug }}.mp4"
-
+      
           echo "Downloading video với ID: ${{ github.event.inputs.id }}"
           
           # Thêm || true để không dừng script nếu java trả về code lạ
           java -jar tools/abyss-dl.jar "${{ github.event.inputs.id }}" h -o "$RAW" || echo "Java finished with some warnings"
-
+      
+          echo "--- Đang chờ file tải về ---"
+          for i in {1..30}; do
+            if [ -f "$RAW" ]; then
+              echo "Đã tìm thấy file $RAW"
+              break
+            fi
+            sleep 2
+          done
+      
           echo "--- Kiểm tra danh sách file đang có ---"
           ls -lh
           
@@ -74,14 +74,14 @@ jobs:
               exit 1
             fi
           fi
-
+      
           SIZE=$(stat -c%s "$RAW")
           echo "Raw size: $SIZE bytes"
           if [ "$SIZE" -lt 1000000 ]; then
              echo "LỖI: File quá nhỏ (có thể tải lỗi)"
              exit 1
           fi
-
+      
           echo "Trying remux (metadata fix)..."
           if ffmpeg -err_detect ignore_err -i "$RAW" -map 0 -c copy "$FILE" -y; then
             echo "Remux OK"
@@ -96,7 +96,7 @@ jobs:
             echo "Remux failed → re-encode"
             NEED_ENCODE=1
           fi
-
+      
           if [ "$NEED_ENCODE" = "1" ]; then
             echo "Re-encoding to H.264..."
             ffmpeg -err_detect ignore_err -fflags +genpts -i "$RAW" \
@@ -105,10 +105,11 @@ jobs:
               -pix_fmt yuv420p -r 24 -g 120 -keyint_min 120 -sc_threshold 0 \
               -c:a aac -b:a 128k -movflags +faststart "$FILE"
           fi
-
+      
           rm -f "$RAW"
           echo "Thời lượng video:"
           ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE"
+      
 
       - name: Convert to HLS (.m3u8 fMP4)
         run: |
