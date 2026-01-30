@@ -40,7 +40,15 @@ jobs:
           mkdir -p tools
           curl -L -o tools/abyss-dl.jar \
             https://github.com/abdlhay/AbyssVideoDownloader/releases/download/v1.6.1/abyss-dl.jar
-
+      - name: Check Connectivity
+        run: |
+          echo "Kiểm tra kết nối tới server..."
+          # Thử ping hoặc curl một link segment (nếu bạn có link m3u8)
+          # Hoặc đơn giản là kiểm tra IP của GitHub hiện tại
+          curl ifconfig.me
+          echo -e "\n"
+          # Thử check tiêu đề trang web nguồn
+          curl -I https://abysscdn.com || echo "Không thể kết nối tới Abyss Server"
       - name: Download video + fix + normalize
         run: |
           RAW="${{ github.event.inputs.slug }}.raw.mp4"
