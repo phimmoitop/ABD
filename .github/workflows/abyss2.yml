@@ -46,28 +46,40 @@ jobs:
           RAW="${{ github.event.inputs.slug }}.raw.mp4"
           FILE="${{ github.event.inputs.slug }}.mp4"
 
-          echo "Downloading video..."
-          java -jar tools/abyss-dl.jar "${{ github.event.inputs.id }}" h -o "$RAW"
+          echo "Downloading video với ID: ${{ github.event.inputs.id }}"
+          
+          # Thêm || true để không dừng script nếu java trả về code lạ
+          java -jar tools/abyss-dl.jar "${{ github.event.inputs.id }}" h -o "$RAW" || echo "Java finished with some warnings"
 
-          [ -f "$RAW" ] || exit 1
+          echo "--- Kiểm tra danh sách file đang có ---"
+          ls -lh
+          
+          # Kiểm tra nếu file không đúng tên, thử tìm file .mp4 nào đó vừa tải về
+          if [ ! -f "$RAW" ]; then
+            echo "CẢNH BÁO: Không tìm thấy file $RAW. Đang tìm file mp4 khác..."
+            DOWNLOADED_FILE=$(ls *.mp4 | head -n 1)
+            if [ -n "$DOWNLOADED_FILE" ]; then
+              mv "$DOWNLOADED_FILE" "$RAW"
+              echo "Đã đổi tên $DOWNLOADED_FILE thành $RAW"
+            else
+              echo "LỖI: Không tìm thấy bất kỳ file video nào!"
+              exit 1
+            fi
+          fi
 
           SIZE=$(stat -c%s "$RAW")
-          echo "Raw size: $SIZE"
-          [ "$SIZE" -gt 1000000 ] || exit 1
+          echo "Raw size: $SIZE bytes"
+          if [ "$SIZE" -lt 1000000 ]; then
+             echo "LỖI: File quá nhỏ (có thể tải lỗi)"
+             exit 1
+          fi
 
           echo "Trying remux (metadata fix)..."
           if ffmpeg -err_detect ignore_err -i "$RAW" -map 0 -c copy "$FILE" -y; then
             echo "Remux OK"
-
-            CODEC=$(ffprobe -v error -select_streams v:0 \
-              -show_entries stream=codec_name \
-              -of default=noprint_wrappers=1:nokey=1 "$FILE")
-
+            CODEC=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$FILE" || echo "unknown")
             echo "Detected codec: $CODEC"
-
             if [ "$CODEC" != "h264" ]; then
-              echo "Non-H264 codec → re-encode"
-              rm -f "$FILE"
               NEED_ENCODE=1
             else
               NEED_ENCODE=0
@@ -79,23 +91,16 @@ jobs:
 
           if [ "$NEED_ENCODE" = "1" ]; then
             echo "Re-encoding to H.264..."
-            ffmpeg -err_detect ignore_err \
-              -fflags +genpts \
-              -i "$RAW" \
-              -map 0:v:0 \
-              -map 0:a? \
+            ffmpeg -err_detect ignore_err -fflags +genpts -i "$RAW" \
+              -map 0:v:0 -map 0:a? \
               -c:v libx264 -crf 23 -preset medium \
-              -pix_fmt yuv420p \
-              -r 24 -g 120 -keyint_min 120 -sc_threshold 0 \
-              -c:a aac -b:a 128k \
-              -movflags +faststart \
-              "$FILE"
+              -pix_fmt yuv420p -r 24 -g 120 -keyint_min 120 -sc_threshold 0 \
+              -c:a aac -b:a 128k -movflags +faststart "$FILE"
           fi
 
           rm -f "$RAW"
-
-          ffprobe -v error -show_entries format=duration \
-            -of default=noprint_wrappers=1:nokey=1 "$FILE"
+          echo "Thời lượng video:"
+          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE"
 
       - name: Convert to HLS (.m3u8 fMP4)
         run: |
