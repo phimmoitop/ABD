@@ -102,13 +102,12 @@ jobs:
           fi
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+        if: env.NEED_REDEPLOY == 'true'
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ github.event.inputs.token }}
           accountId: ${{ github.event.inputs.accountId }}
-          projectName: ${{ github.event.inputs.projectName }}
-          directory: ./output
-          branch: ${{ github.event.inputs.slug }}
+          command: pages deploy ./output --project-name=${{ github.event.inputs.projectName }} --branch=${{ github.event.inputs.slug }}
 
             
       - name: Verify Cloudflare deployment (branch domain check)
@@ -155,12 +154,10 @@ jobs:
           echo "NEED_REDEPLOY=true" >> $GITHUB_ENV
           exit 1
 
-      - name: Deploy to Cloudflare Pages (retry – reuse encoded files)
+       - name: Deploy to Cloudflare Pages
         if: env.NEED_REDEPLOY == 'true'
-        uses: cloudflare/pages-action@v1
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ github.event.inputs.token }}
           accountId: ${{ github.event.inputs.accountId }}
-          projectName: ${{ github.event.inputs.projectName }}
-          directory: ./output
-          branch: ${{ github.event.inputs.slug }}
+          command: pages deploy ./output --project-name=${{ github.event.inputs.projectName }} --branch=${{ github.event.inputs.slug }}
