@@ -102,7 +102,6 @@ jobs:
           fi
 
       - name: Deploy to Cloudflare Pages
-        if: env.NEED_REDEPLOY == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ github.event.inputs.token }}
