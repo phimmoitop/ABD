@@ -154,7 +154,7 @@ jobs:
           echo "NEED_REDEPLOY=true" >> $GITHUB_ENV
           exit 1
 
-       - name: Deploy to Cloudflare Pages
+      - name: Deploy to Cloudflare Pages
         if: env.NEED_REDEPLOY == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
